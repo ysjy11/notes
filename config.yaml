@@ -1,0 +1,757 @@
+# ==================
+# 基础设置
+# ==================
+mixed-port: 7890                  # HTTP(S)代理服务器端口
+socks-port: 7891                  # SOCKS5 代理端口
+redir-port: 7892                  # 透明代理端口，用于 Linux 和 MacOS
+tproxy-port: 7893			      # 开启透明代理端口
+allow-lan: true                   # 允许局域网连接
+bind-address: "*"                 # 允许来自Docker 网桥的所有流量
+mode: rule                        # 规则模式
+log-level: info                   # 日志级别
+ipv6: true                        # 开启 IPv6 总开关，关闭阻断所有 IPv6 链接和屏蔽 DNS 请求 AAAA 记录
+unified-delay: true               # 统一延迟显示
+tcp-concurrent: true              # 允许 TCP 快速开启
+sniff: true
+sniff-override-destination: true  
+geodata-mode: true                # 开启内存映射
+find-process-mode: strict         # always, 开启强制匹配所有进程;strict, 默认，由 mihomo 判断是否开启;off, 不匹配进程，推荐在路由器上使用此模式
+geo-auto-update: true            # 是否自动更新 geodata
+geo-update-interval: 24           # 更新间隔，单位：小时
+#authentication:                  # http,socks入口的验证用户名，密码
+#  - "username:password"
+
+
+# ==================
+# UI配置
+# ==================
+external-controller: 0.0.0.0:9090  # 允许外部控制
+external-controller-tls: 0.0.0.0:9444
+secret: "ysjy11"                   # 控制面板密码
+
+# 默认面板配置（自动下载并解压 Zashboard 到 ui 目录）
+external-ui: ./ui    # 预留面板路径
+#external-ui-name: zashboard
+#external-ui-url: "https://github.com/Zephyruso/zashboard/archive/refs/heads/gh-pages.zip"
+external-ui-name: metacubexd
+external-ui-url: "https://github.com/MetaCubeX/metacubexd/archive/refs/heads/gh-pages.zip"
+# 允许跨域请求（极其重要！支持在线版 Metacubexd / Zashboard 直连）
+cors:
+  allow-origins:
+    - '*'
+  allow-private-network: true
+
+
+# ==================
+# TUN 配置
+# ==================
+tun:
+  enable: true
+  stack: system
+  mtu: 1400
+  gso: true
+  auto-route: true #自动添加路由规则
+  auto-redirect: true  # 必須為 true，讓它接管宿主機路由
+  auto-detect-interface: true # 自动检测出口网卡,必須為 true，自動識別宿主機上網的真實網卡
+  strict-route: true
+  dns-hijack:         # 需要劫持的 DNS
+    - any:53
+    - tcp://any:53
+  route-exclude-address:
+    - 192.168.0.0/16
+    - 172.16.0.0/12
+    - 10.0.0.0/8
+    - 127.0.0.0/8
+    
+# 可选：如果遇到部分 Docker 容器网络冲突，可以排除特定的 docker 网卡
+#  include-interface:
+  exclude-interface:
+    - docker0
+#    - br-proxy
+  endpoint-independent-nat: true
+
+
+
+# ==================
+# DNS 模块
+# ==================
+dns:                               
+  cache-algorithm: arc
+  enable: true                    # 开启/关闭将使用系统DNS
+  prefer-h3: true                 # 是否开启DoH，支持 HTTP/3，将并发尝试
+  listen: 0.0.0.0:1053            # 开启 DNS 服务器监听
+  ipv6: true                      # ?
+  respect-rules: true
+
+  enhanced-mode: fake-ip          # fake-ip模式可能会让adg广告规则失效(redir-host)
+  fake-ip-range: 198.18.0.1/16    # fake-ip 池设置
+  fake-ip-filter-mode: blacklist  # 默认为blacklist，即如果匹配成功不返回fake-ip
+    # 可设置为whitelist，即只有匹配成功才返回fake-ip
+    # 也可配置为rule，规则模式语法见fake-ip-filter说明
+  fake-ip-ttl: 60
+  fake-ip-filter:                 # 不使用fake-ip的域名
+    # 局域网 & 系统检测（不返回 fake-ip）
+    - '*.lan'
+    - '*.local'
+    - '+.local'
+    - '+.home.arpa'
+    - '+.msftconnecttest.com'
+    - '+.msftncsi.com'
+    - localhost.ptlogin2.qq.com
+    - '+.msftconnecttest.com'
+    - '+.msftncsi.com'
+    - dns.msftncsi.com
+    - geosite:cn
+    - geosite:private
+
+#    - rule-set:fakeip-filter
+#    - geosite:fakeip-filter                  # fakeip-filter 为 geosite 中名为 fakeip-filter 的分类（需要自行保证该分类存在）
+#    - rule-set:fakeipfilter_cn         
+#    - rule-set:fakeipfilter_!cn         
+#    - rule-set:private_domain
+#    - GEOSITE,gfw,fake-ip
+#    - RULE-SET,reject-domain,fake-ip         # 自定义 RuleSet behavior 必须为 domain/classical，当为 classical 时仅会生效域名类规则
+#    - RULE-SET,proxy-domain,fake-ip
+#    - DOMAIN,www.baidu.com,real-ip
+#    - DOMAIN-SUFFIX,qq.com,real-ip
+#    - DOMAIN-SUFFIX,jd.com,fake-ip
+#    - MATCH,fake-ip     # 最后 fake-ip or real-ip
+
+  default-nameserver:             # 用于解析nameserver、fallback以及其他DNS服务器配置的DNS服务域名。只能使用纯IP地址，可使用加密DNS。
+    - tls://223.5.5.5
+    - tls://223.6.6.6
+    - tls://119.29.29.29
+  nameserver:                     # 主要DNS配置，用国内DNS(域名或IP）
+    - 192.168.50.250:53   # 将未命中直连的请求交由同 Docker 下的 AdGuard Home 处理，由 AGH 统一过滤广告并向上游公网IP转发
+    # - 114.114.114.114 # default value
+    # - 8.8.8.8 # default value
+    # - tls://223.5.5.5:853 # DNS over TLS
+#    - https://doh.pub/dns-query # DNS over HTTPS
+#    - https://dns.alidns.com/dns-query
+  nameserver-policy:              # 查询域名使用的DNS，用国内DNS(域名)
+    #   'www.baidu.com': '114.114.114.114'
+    #   '+.internal.crop.com': '10.0.0.1'
+    # 谷歌商店专用（强制走国外 DNS）
+    "+.googleapis.cn,+.xn--ngstr-lra8j.com,+.googleapis.com,+.gstatic.com":
+      - https://8.8.8.8/dns-query
+      - https://1.1.1.1/dns-query
+     # 国内走国内
+    "geosite:cn,private,apple":
+      - https://doh.pub/dns-query
+      - https://dns.alidns.com/dns-query
+    "geosite:category-ads-all": rcode://success
+    "www.baidu.com,+.google.cn": [223.5.5.5, https://dns.alidns.com/dns-query, https://1.1.1.1/dns-query]
+    ## global，dns 为 rule-providers 中的名为 global 和 dns 规则订阅，
+    ## 且 behavior 必须为 domain/classical，当为 classical 时仅会生效域名类规则
+    # "rule-set:global,dns": 8.8.8.8
+  proxy-server-nameserver:        # 解析机场订阅及节点域名的DNS，用国内DNS(域名)，非必设置项
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  direct-nameserver:              # 用于direct直连出口域名解析的DNS服务器，用国内DNS(域名)，非必要配置项
+    - https://dns.alidns.com/dns-query
+    - https://doh.pub/dns-query
+  fallback:                       # 当配置fallback时，会查询 nameserver 中返回的 IP 是否为 CN，当不是CN，则使用 fallback 中的 DNS 查询结果,非必要配置
+     - https://1.1.1.1/dns-query
+     - https://8.8.8.8/dns-query#默认代理
+  fallback-filter:
+     geoip: true    # 配置是否使用 geoip
+     geoip-code: CN # 当 nameserver 解析出域名的 IP 查询 geoip 库为 CN 时， 使用 nameserver 中的 DNS 查询结果
+    #   ipcidr:        # 当 nameserver 解析出域名的 IP 匹配 ipcidr 时，使用 fallback 中的 DNS 查询结果
+    #     - 240.0.0.0/4
+    #     - 0.0.0.0/32
+    #     - 127.0.0.1/32
+    #     - 100.64.0.0/10
+    #   domain:        # 匹配到这些域名，会直接使用 fallback 解析，不去使用 nameserver
+    #     - '+.google.com'
+    #     - '+.facebook.com'
+    #     - '+.youtube.com'
+    #   geosite:       # 匹配到这些域名，会直接使用 fallback 解析，不去使用 nameserver（已废弃，请使用 nameserver-policy）
+    #     - gfw
+    # fallback-lazy-query: false # 默认值为 false ，如果为 true 会先判断来自 nameserver 的结果是否满足 fallback-filter 后再发起查询
+
+
+# =========================================================
+# 机场节点归属判断,显示小国旗 (YAML 锚点全局模板)
+# =========================================================
+x-override-flags: &node-flags
+  proxy-name:
+    # 香港
+    - pattern: "(?i).*(港|hk|HK|hong.?kong|hongkong|hkg).*"
+      target: "🇭🇰 $0"
+    # 台湾
+    - pattern: "(?i).*(台|tw|taiwan|tpe).*"
+      target: "🇹🇼 $0"
+    # 日本
+    - pattern: "(?i).*(日|jp|japan|东京|大阪|名古屋|nrt|hnd|kix|tyo|orhy).*"
+      target: "🇯🇵 $0"
+    # 新加坡
+    - pattern: "(?i).*(新|sg|singapore|sin|狮城).*"
+      target: "🇸🇬 $0"
+    # 韩国
+    - pattern: "(?i).*(韩|kr|korea|首尔|icn).*"
+      target: "🇰🇷 $0"
+    # 美国
+    - pattern: "(?i).*(美|us|usa|united.?states|america|洛杉矶|西雅图|纽约|芝加哥|硅谷|达拉斯|lax|sjc|sea|nyc|sfo|iad|dfw|vvv|band2).*"
+      target: "🇺🇸 $0"
+    # 英国
+    - pattern: "(?i).*(英|uk|gb|britain|london|lhr).*"
+      target: "🇬🇧 $0"
+    # 德国
+    - pattern: "(?i).*(德|de|germany|frankfurt|fra|柏林).*"
+      target: "🇩🇪 $0"
+    # 法国
+    - pattern: "(?i).*(法|fr|france|paris|cdg).*"
+      target: "🇫🇷 $0"
+    # 加拿大
+    - pattern: "(?i).*(加|ca|canada|toronto|yyz).*"
+      target: "🇨🇦 $0"
+    # 澳大利亚
+    - pattern: "(?i).*(澳|au|australia|sydney|melbourne|syd).*"
+      target: "🇦🇺 $0"
+
+# =========================================================
+# 代理提供者 (订阅在此配置)
+# =========================================================
+proxy-providers:  #代理集合
+
+#  示例机场:          # 订阅名称。必须项，如provider1，不能重复，建议不要和策略组名称重复
+#    type: http    #必须项，provider类型，可选http / file / inline
+#    url: "机场订阅地址" #填写机场订阅地址，引号要保留
+#    path: ./proxy_providers/provider1.yaml   #可选，文件路径，不可重复，不填写时会使用 url 的 MD5 作为此文件的文件名
+#    interval: 86400        #更新provider的时间，单位为秒
+#    proxy: DIRECT          #经过指定代理进行下载/更新
+#    size-limit: 0          #限制下载文件的最大大小，默认为 0 即不限制文件大小，单位为字节 (b)
+#    udp: true                # 开启 UDP 支持
+#    skip-cert-verify: true   # 跳过证书检查（解决节点不可用）
+#    health-check:           #健康检查 (延迟测试)
+#      enable: true          #是否启用，可选 true/false
+#      url: http://www.gstatic.com/generate_204  #健康检查地址，推荐使用以下地址之一
+#     url: https://cp.cloudflare.com
+#      interval: 600         #健康检查间隔时间，单位为秒
+#      timeout: 5000         #健康检查超时时间，单位为毫秒
+#    override:               #覆写节点内容       
+#      additional-prefix: "provider1 prefix |"   #为节点名称添加固定前缀，例如"[provider1] " + .name' 
+#      additional-suffix: "| provider1 suffix"   #为节点名称添加固定后缀
+      
+###########################################################
+  
+  机场1:          # 订阅名称。必须项，如provider1，不能重复，建议不要和策略组名称重复
+    type: http    #必须项，provider类型，可选http / file / inline
+    url: "https://a0u03.no-mad-sub.one/link/E5aqMjh376jECwei?clash=3&extend=1"
+    path: ./proxy_providers/ikuuu.yaml   #可选，文件路径，不可重复，不填写时会使用 url 的 MD5 作为此文件的文件名
+    interval: 86400
+    udp: true                # 开启 UDP 支持
+    skip-cert-verify: true   # 跳过证书检查（解决节点不可用）
+    health-check:
+      enable: true
+      interval: 600
+      url: http://www.gstatic.com/generate_204
+#    override: *node-flags    
+      
+#  机场2: #第二个订阅
+#    type: http
+#    url: "https://yimoty.ccwu.cc/sub?token=f0ff92c84151ec31305112facb4adce1"
+#    path: ./proxy_providers/yimoty-ccwucc.yaml
+#    proxy: DIRECT 
+#    interval: 3600
+#    udp: true
+#    skip-cert-verify: true
+#    health-check:
+#      enable: true
+#      url: http://www.gstatic.com/generate_204
+#      interval: 600
+
+  机场3: # 香港节点
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/hk.yaml"
+    path: ./proxy_providers/hk.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600
+    override: *node-flags
+      
+  机场4: #第N个订阅
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/2bf20cba858865bffade13a5c6047e6c/raw/All.yaml"
+    path: ./proxy_providers/all.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600
+    override: *node-flags 
+
+
+
+      
+  机场5: # 日本节点
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/jpn3.yaml"
+    path: ./proxy_providers/jpn3.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600
+    override: *node-flags
+    
+  机场6: # 日本节点
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/jpn2.yaml"
+    path: ./proxy_providers/jpn2.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600
+    override: *node-flags  
+      
+  机场7: # 台湾节点
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/tpe.yaml"
+    path: ./proxy_providers/tw1.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600
+    override: *node-flags 
+      
+  机场8: #第N个订阅
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/tpe2.yaml"
+    path: ./proxy_providers/tw2.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600
+    override: *node-flags 
+    
+  机场9: # 美国节点
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/usa2.yaml"
+    path: ./proxy_providers/sua2.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600
+    override: *node-flags 
+    
+    
+  机场10: # 美国节点
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/usa3.yaml"
+    path: ./proxy_providers/usa3.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600 
+    override: *node-flags
+
+  机场10.1: #第N个订阅
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/9b57fb6e9b53e404444fa2d7b14e099c7bce8eac/usa4.yaml"
+    path: ./proxy_providers/usa4.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600 
+    override: *node-flags 
+      
+  机场11: #第N个订阅
+    type: http
+    url: "https://gist.githubusercontent.com/aaronchin/f4f84e37338da156e95e968591276bbc/raw/usa5.yaml"
+    path: ./proxy_providers/usa5.yaml
+    udp: true
+    skip-cert-verify: true
+    interval: 86400
+    health-check:
+      enable: true
+      url: http://www.gstatic.com/generate_204
+      interval: 600
+    override: *node-flags 
+      
+      
+# ===============================================
+# 策略/代理组：自动测速 + 手动选择
+# ===============================================
+proxy-groups:
+  
+#  - name: "示例策略/代理组名称"   #必须，策略组的名字，如有特殊符号，应当使用引号将其包裹
+#    type: select    #必须，策略组的类型
+#    proxies:        #引入出站代理或其他策略组
+#    - DIRECT        #
+#    - ss            #机场节点
+#    - vmess 
+#    use:            #引入代理集合
+#    - 示例机场
+#    - 示例机场1
+#    url: 'https://www.gstatic.com/generate_204'   #健康检查测试地址，只会检查代理组的 proxies字段的代理，不会检查代理集合（proxy-providers）的代理（通过 use 引入的）。
+#    interval: 300   #健康检查间隔，如不为 0 则启用定时测试，单位为秒
+#    lazy: true      #懒惰状态，默认为true,未选择到当前策略组时，不进行测试
+#    default-selected: ss    #默认选择的节点。该项为空或者设置的节点名不存在时，默认选择组中第一个节点
+#    empty-fallback: COMPATIBLE      #当组为空时的回退proxy，默认为COMPATIBLE，这里不支持填写代理组，只支持填写proxy名称
+#    timeout: 5000           #健康检查超时时间，单位为毫秒
+#    max-failed-times: 5     #最大失败次数，超过则触发一次强制健康检查，默认 5
+#    disable-udp: true       #禁用该策略组的UDP
+#    include-all: false     #引入所有出站代理以及代理集合，顺序将按照名称排序，引入不包含策略组,可在proxies引入其他策略组
+#    include-all-proxies: false  #引入所有出站代理，顺序将按照名称排序，引入不包含策略组,可在proxies引入其他策略组
+#    include-all-providers: false    #引入所有代理集合，顺序将按照名称排序，会使引入代理集合失效
+#    filter: "(?i)港|hk|hongkong|hong kong"  #筛选满足关键词或正则表达式的节点，可以使用 ` 区分多个正则表达式，仅作用于引入代理集合以及引入所有出站代理
+#    exclude-filter: "美|日"     #排除满足关键词或正则表达式的节点，可以使用 ` 区分多个正则表达式
+#    exclude-type: "Shadowsocks|Http"    #不支持正则表达式，通过 | 分割，根据节点类型排除，仅排除引入出站代理
+#    expected-status: 204    #康检查时期望的 HTTP 响应状态码。若配置了该字段，则只有当响应状态码与期望状态一致时才认为节点可用。默认为 *，表示对响应状态不做要求，使用 / 匹配多个状态码，使用 - 匹配状态范围，可混合书写
+#    hidden: true            #在 api 返回hidden状态，以隐藏该策略组展示 (需要使用 api 的前端适配)
+#    icon: xxx               #在 api 返回icon所输入的字符串，以在该策略组显示 (需要使用 api 的前端适配)
+  
+  ##############################################
+  
+  - name: "🌍 节点选择"
+    type: select
+    proxies:
+      - 🚀 自动选择
+      - 🧠 手动选择
+      - 🇭🇰 香港
+      - 🇺🇸 美国
+      - 🇯🇵 日本
+      - 🇹🇼 台湾
+      - 🇸🇬 新加坡
+      - DIRECT
+#    use:
+#      - 机场1    # 对应上面的订阅名称
+#      - 机场2
+#      - 机场3
+#      - 机场4
+#      - 机场5      
+#      - 机场6
+#      - 机场7
+#      - 机场8
+#      - 机场9
+#      - 机场10
+#      - 机场11
+    
+  - name: "🚀 自动选择"  # 自动选择组：自动挑最快的
+    type: url-test
+    #url: "http://www.gstatic.com/generate_204"
+    url: "https://cp.cloudflare.com/generate_204" #更贴近真实使用的网址
+    interval: 180
+    tolerance: 40  #节点切换容差，单位 ms
+    timeout: 3000
+    expected-status: 204
+    #lazy: true  #懒惰状态，默认为true,未选择到当前策略组时，不进行测试
+    use:
+      - 机场1
+#      - 机场2
+      - 机场3
+      - 机场4
+      - 机场5      
+      - 机场6
+      - 机场7
+      - 机场8
+      - 机场9
+      - 机场10
+      - 机场10.1
+      - 机场11
+      
+  - name: 🧠 手动选择
+    type: select
+    proxies:
+      - DIRECT
+    use:
+      - 机场1
+#      - 机场2
+      - 机场3
+      - 机场4
+      - 机场5      
+      - 机场6
+      - 机场7
+      - 机场8
+      - 机场9
+      - 机场10
+      - 机场10.1
+      - 机场11
+
+
+      
+  - name: 🇭🇰 香港
+    type: url-test
+    filter: "(?i)港|hk|hong.?kong"
+    exclude-filter: "(?i)(美|us|日|jp|台|tw|新|sg|韩|kr)"
+    interval: 300
+    timeout: 3000
+    expected-status: 204
+#    tolerance: 150
+#    icon: "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/hk.svg"
+    proxies:
+      - DIRECT
+    use: [机场3,机场4]
+    
+
+    
+  - name: 🇺🇸 美国
+    type: url-test
+    filter: "(?i)美|us|united.?states|america"
+    interval: 300
+    timeout: 3000
+    expected-status: 204
+#    tolerance: 150
+#    icon: "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/us.svg"
+    proxies:
+      - DIRECT
+    use:
+#      - 机场2
+      - 机场4
+      - 机场7
+      - 机场8
+      - 机场9
+      - 机场10
+      - 机场10.1
+      - 机场11
+
+       
+  - name: 🇯🇵 日本
+    type: url-test
+    filter: "(?i)日|jp|japan"
+    exclude-filter: "(?i)(港|hk|美|us|台|tw|新|sg|韩|kr)"
+    interval: 300
+    timeout: 3000
+    expected-status: 204
+#    tolerance: 150
+#    icon: "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/jp.svg"
+    proxies:
+      - DIRECT
+    use:
+      - 机场1
+      - 机场4
+      - 机场5      
+      - 机场6
+
+  
+  - name: 🇸🇬 新加坡
+    type: url-test
+    filter: "(?i)新|sg|singapore"
+    interval: 300
+    timeout: 3000
+    expected-status: 204
+#    tolerance: 150
+#    icon: "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/sg.svg"
+    proxies:
+      - DIRECT
+    use:
+      - 机场1
+#      - 机场2
+      - 机场3
+      - 机场4
+      - 机场5      
+      - 机场6
+      - 机场7
+      - 机场8
+      - 机场9
+      - 机场10
+      - 机场11
+
+    
+  - name: 🇹🇼 台湾
+    type: url-test
+    filter: "(?i)台|tw|taiwan|tpe"
+    exclude-filter: "(?i)(港|hk|日|jp|美|us|新|sg|韩|kr)"
+    interval: 300
+    timeout: 3000
+    expected-status: 204
+#    tolerance: 150
+#    icon: "https://fastly.jsdelivr.net/gh/clash-verge-rev/clash-verge-rev.github.io@main/docs/assets/icons/flags/tw.svg"
+    proxies:
+      - DIRECT
+    use:
+      - 机场4
+      - 机场7
+      - 机场8
+      
+  - name: "🐟 漏网之鱼"
+    type: select
+    proxies:
+      - 🌍 节点选择
+      - DIRECT
+
+
+# =========================================================
+# rules-规则
+# =========================================================
+rules:
+  # 1.本地 / 局域网 / 私有地址（最高优先级）
+  - DOMAIN-SUFFIX,localhost,DIRECT
+  - DOMAIN-SUFFIX,local,DIRECT
+  - DOMAIN-SUFFIX,lan,DIRECT
+  - DOMAIN-SUFFIX,home.arpa,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,169.254.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+  - IP-CIDR,224.0.0.0/4,DIRECT,no-resolve
+  - IP-CIDR6,fc00::/7,DIRECT,no-resolve
+  - IP-CIDR6,fe80::/10,DIRECT,no-resolve
+  - GEOIP,LAN,DIRECT,no-resolve
+  - GEOIP,private,DIRECT    
+  - GEOIP,cn,DIRECT
+  #  国内域名 + 国内 IP 直连
+  - GEOSITE,cn,DIRECT
+  - GEOSITE,private,DIRECT
+  - GEOIP,cn,DIRECT,no-resolve
+
+  
+  # 2.支付 / 银行 / 国内核心服务强制直连（防止被误代理）
+  - DOMAIN-SUFFIX,alipay.com,DIRECT
+  - DOMAIN-SUFFIX,alipayobjects.com,DIRECT
+  - DOMAIN-SUFFIX,alipay.cn,DIRECT
+  - DOMAIN-SUFFIX,alipayhk.com,DIRECT
+  - DOMAIN-SUFFIX,antgroup.com,DIRECT
+  - DOMAIN-SUFFIX,antfin.com,DIRECT
+  - DOMAIN-SUFFIX,tenpay.com,DIRECT
+  - DOMAIN-SUFFIX,wechatpay.cn,DIRECT
+  - DOMAIN-SUFFIX,weixin.qq.com,DIRECT
+  - DOMAIN-SUFFIX,wx.qq.com,DIRECT
+  - DOMAIN-SUFFIX,qq.com,DIRECT
+  - DOMAIN-SUFFIX,unionpay.com,DIRECT
+  - DOMAIN-SUFFIX,unionpaysecure.com,DIRECT
+  - DOMAIN-SUFFIX,95516.com,DIRECT
+  - DOMAIN-KEYWORD,alipay,DIRECT
+  - DOMAIN-KEYWORD,tenpay,DIRECT
+  
+  # 3.需要代理的服务、镜像、域名
+  # ---谷歌相关（解决 Google Play 下载问题的关键）---
+  - DOMAIN-SUFFIX,googleapis.cn,🌍 节点选择
+  - DOMAIN-SUFFIX,services.googleapis.cn,🌍 节点选择
+  - DOMAIN-SUFFIX,xn--ngstr-lra8j.com,🌍 节点选择
+  - DOMAIN-SUFFIX,googleapis.com,🌍 节点选择
+  - DOMAIN-SUFFIX,gstatic.com,🌍 节点选择
+  - DOMAIN-SUFFIX,googleusercontent.com,🌍 节点选择
+  - DOMAIN-SUFFIX,gvt1.com,🌍 节点选择
+  - DOMAIN-SUFFIX,gvt2.com,🌍 节点选择
+  - DOMAIN-SUFFIX,gvt3.com,🌍 节点选择
+  - GEOSITE,google,🌍 节点选择
+  
+  # --- Telegram ---
+  - GEOSITE,telegram,🌍 节点选择
+  - GEOIP,telegram,🌍 节点选择,no-resolve
+  
+    # --- 常见需要代理的服务 ---
+  - GEOSITE,youtube,🌍 节点选择
+  - GEOSITE,netflix,🌍 节点选择
+  - GEOSITE,disney,🌍 节点选择
+  - GEOSITE,spotify,🌍 节点选择
+  - GEOSITE,github,🌍 节点选择
+  - GEOSITE,twitter,🌍 节点选择
+  - GEOSITE,facebook,🌍 节点选择
+  - GEOSITE,instagram,🌍 节点选择
+  - GEOSITE,tiktok,🌍 节点选择
+  - GEOSITE,openai,🌍 节点选择
+  - GEOSITE,anthropic,🌍 节点选择
+  
+  # 4. 云端 GFW 规则集（动态补充那些旧 GEOSITE 没覆盖到的新兴国外网站）
+  - RULE-SET,google_domain,🌍 节点选择
+  - RULE-SET,telegram_domain,🌍 节点选择
+  - GEOSITE,gfw,🌍 节点选择
+  - RULE-SET,youtube_domain,🌍 节点选择
+  - RULE-SET,github_domain,🌍 节点选择
+  - RULE-SET,telegram_domain,🌍 节点选择
+  - RULE-SET,netflix_domain,🌍 节点选择
+  - RULE-SET,geolocation_not_cn,🌍 节点选择
+  
+   # 5. 兜底规则（建议放最后）
+  - MATCH,🐟 漏网之鱼
+  
+ 
+ 
+  
+# =========================================================
+# 规则集配置 (MRS 高性能二进制规则集)
+# =========================================================
+anchor-domain: &domain
+  type: http
+  interval: 86400
+  behavior: domain
+  format: mrs
+
+anchor-ip: &ip
+  type: http
+  interval: 86400
+  behavior: ipcidr
+  format: mrs
+  
+anchor-domain-text: &domain_text
+  type: http
+  interval: 86400
+  behavior: domain
+  format: text
+
+
+rule-providers:
+  # --- 基础与 Fake-IP 过滤规则 ---
+  fakeipfilter_cn: {<<: *domain_text, url: "https://raw.githubusercontent.com/qichiyuhub/rule/refs/heads/main/rules/fakeipfilter-cn.list"}
+  fakeipfilter_!cn: {<<: *domain_text, url: "https://raw.githubusercontent.com/qichiyuhub/rule/refs/heads/main/rules/fakeipfilter-!cn.list"}
+  category_ads: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ads.mrs"}
+
+  # --- 直连与私有规则集 ---
+  private_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/private.mrs"}
+  private_ip: {<<: *ip, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/private.mrs"}
+  microsoftcn_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/microsoft@cn.mrs"}
+  applecn_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/apple@cn.mrs"}
+  steamcn_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/steam@cn.mrs"}
+  cn_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/cn.mrs"}
+  geolocation_cn: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/geolocation-cn.mrs"}
+  cn_ip: {<<: *ip, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/cn.mrs"}
+
+  # --- 代理与专项服务规则集 ---
+  ai_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ai-!cn.mrs"}
+  youtube_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/youtube.mrs"}
+  google_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/google.mrs"}
+  github_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/github.mrs"}
+  onedrive_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/onedrive.mrs"}
+  microsoft_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/microsoft.mrs"}
+  apple_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/apple.mrs"}
+  telegram_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/telegram.mrs"}
+  tiktok_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/tiktok.mrs"}
+  netflix_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/netflix.mrs"}
+  paypal_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/paypal.mrs"}
+  binance_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/binance.mrs"}
+  okx_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/okx.mrs"}
+  usd_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-cryptocurrency.mrs"}
+  steam_domain: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/steam.mrs"}
+  geolocation_not_cn: {<<: *domain, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/geolocation-!cn.mrs"}
+
+  # --- IP 校验段 ---
+  google_ip: {<<: *ip, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/google.mrs"}
+  apple_ip: {<<: *ip, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo-lite/geoip/apple.mrs"}
+  telegram_ip: {<<: *ip, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/telegram.mrs"}
+  netflix_ip: {<<: *ip, url: "https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/netflix.mrs"}
+  
+
+  
+
+ 
